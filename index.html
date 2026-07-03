@@ -656,7 +656,7 @@
           <button id="nextButton" class="secondary">Sonraki</button>
           <button id="openExternalButton" class="green">Yeni Sekmede Aç</button>
         </div>
-        <div id="status" class="status">Yönetici panelinden M3U/M3U8, Xtream veya STBEmu kaynağı ekle, sonra buradan yükle.</div>
+        <div id="status" class="status">Yönetici panelinden M3U/M3U8 linki, M3U dosyası, Xtream veya STBEmu kaynağı ekle, sonra buradan yükle.</div>
       </main>
     </div>
   </div>
@@ -666,7 +666,7 @@
       <div class="admin-head">
         <div>
           <h2>Yönetici Paneli</h2>
-          <div class="muted">Link ekleme, Xtream/STBEmu ekleme ve kategori ayarları buradan yapılır.</div>
+          <div class="muted">Link ekleme, dosya yükleme, Xtream/STBEmu ekleme ve kategori ayarları buradan yapılır.</div>
         </div>
         <button id="closeAdminButton" class="secondary">Kapat</button>
       </div>
@@ -692,6 +692,7 @@
             <label>Kaynak tipi
               <select id="sourceType">
                 <option value="m3u">M3U / M3U8 Link</option>
+                <option value="file">M3U Dosyası Yükle</option>
                 <option value="xtream">Xtream Codes</option>
                 <option value="stb">STBEmu / Stalker Portal</option>
               </select>
@@ -703,6 +704,11 @@
             <label id="m3uUrlLabel" class="full">M3U / M3U8 linki
               <input id="sourceUrl" type="text" placeholder="https://.../playlist.m3u8 veya get.php?..." />
               <span>Playlist linki veya tek yayın linki olabilir.</span>
+            </label>
+
+            <label id="m3uFileLabel" class="full hidden">M3U dosyası
+              <input id="sourceFile" type="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" />
+              <span>Web sitesinde link CORS/HTTP nedeniyle yüklenmiyorsa, abonelik panelinden indirdiğin .m3u/.m3u8 dosyasını buradan yükleyebilirsin. Dosya içeriği bu tarayıcıda saklanır.</span>
             </label>
 
             <label id="xtreamServerLabel" class="hidden">Xtream sunucu URL
@@ -721,6 +727,16 @@
               </select>
               <span>API çalışmazsa otomatik M3U yöntemi denenir.</span>
             </label>
+
+            <div id="xtreamConvertBox" class="full hidden direct-box" style="margin-top:0;">
+              <h3>Xtream → M3U Dosyası</h3>
+              <p class="muted">Sunucu, kullanıcı adı ve şifreyi yazdıktan sonra M3U dosyası oluşturmayı deneyebilirsin. Tarayıcı CORS nedeniyle dosyayı alamazsa indirme linki yeni sekmede açılır.</p>
+              <div class="two">
+                <button id="convertXtreamButton" type="button" class="orange">Dosyaya Çevir / İndir</button>
+                <button id="openXtreamM3uButton" type="button" class="secondary">M3U Linkini Aç</button>
+              </div>
+              <div id="xtreamConvertMessage" class="status" style="margin-top:10px;">Bu işlem kaynağı M3U dosyası olarak oluşturmayı dener.</div>
+            </div>
 
             <label id="stbPortalLabel" class="hidden">STBEmu portal URL
               <input id="stbPortal" type="text" placeholder="http://domain.com/stalker_portal/c/ veya /portal.php" />
@@ -858,7 +874,9 @@
       sourceType: $("sourceType"),
       sourceName: $("sourceName"),
       sourceUrl: $("sourceUrl"),
+      sourceFile: $("sourceFile"),
       m3uUrlLabel: $("m3uUrlLabel"),
+      m3uFileLabel: $("m3uFileLabel"),
       xtreamServerLabel: $("xtreamServerLabel"),
       xtreamUserLabel: $("xtreamUserLabel"),
       xtreamPassLabel: $("xtreamPassLabel"),
@@ -867,6 +885,10 @@
       xtreamUsername: $("xtreamUsername"),
       xtreamPassword: $("xtreamPassword"),
       xtreamMode: $("xtreamMode"),
+      xtreamConvertBox: $("xtreamConvertBox"),
+      convertXtreamButton: $("convertXtreamButton"),
+      openXtreamM3uButton: $("openXtreamM3uButton"),
+      xtreamConvertMessage: $("xtreamConvertMessage"),
       stbPortalLabel: $("stbPortalLabel"),
       stbMacLabel: $("stbMacLabel"),
       stbSerialLabel: $("stbSerialLabel"),
@@ -926,7 +948,11 @@
     }
 
     function saveSources() {
-      localStorage.setItem(LS.sources, JSON.stringify(sources));
+      try {
+        localStorage.setItem(LS.sources, JSON.stringify(sources));
+      } catch (err) {
+        throw new Error("Kaynaklar kaydedilemedi. Dosya çok büyük olabilir; tarayıcı depolama limiti doldu.");
+      }
     }
 
     function getCurrentCategorySourceKey() {
@@ -1048,6 +1074,8 @@
       els.sourceType.addEventListener("change", updateSourceTypeFields);
       els.addSourceButton.addEventListener("click", addSource);
       els.clearFormButton.addEventListener("click", clearSourceForm);
+      els.convertXtreamButton.addEventListener("click", convertXtreamToM3uFile);
+      els.openXtreamM3uButton.addEventListener("click", openXtreamM3uFromForm);
       els.tempLoadButton.addEventListener("click", loadTempUrl);
       els.tabSources.addEventListener("click", () => showTab("sources"));
       els.tabCategories.addEventListener("click", () => showTab("categories"));
@@ -1152,11 +1180,14 @@
       const type = els.sourceType.value;
       const isXtream = type === "xtream";
       const isStb = type === "stb";
-      els.m3uUrlLabel.classList.toggle("hidden", isXtream || isStb);
+      const isFile = type === "file";
+      els.m3uUrlLabel.classList.toggle("hidden", isXtream || isStb || isFile);
+      els.m3uFileLabel.classList.toggle("hidden", !isFile);
       els.xtreamServerLabel.classList.toggle("hidden", !isXtream);
       els.xtreamUserLabel.classList.toggle("hidden", !isXtream);
       els.xtreamPassLabel.classList.toggle("hidden", !isXtream);
       els.xtreamModeLabel.classList.toggle("hidden", !isXtream);
+      els.xtreamConvertBox.classList.toggle("hidden", !isXtream);
       els.stbPortalLabel.classList.toggle("hidden", !isStb);
       els.stbMacLabel.classList.toggle("hidden", !isStb);
       els.stbSerialLabel.classList.toggle("hidden", !isStb);
@@ -1167,10 +1198,12 @@
     function clearSourceForm() {
       els.sourceName.value = "";
       els.sourceUrl.value = "";
+      if (els.sourceFile) els.sourceFile.value = "";
       els.xtreamServer.value = "";
       els.xtreamUsername.value = "";
       els.xtreamPassword.value = "";
       els.xtreamMode.value = "api";
+      if (els.xtreamConvertMessage) els.xtreamConvertMessage.textContent = "Bu işlem kaynağı M3U dosyası olarak oluşturmayı dener.";
       els.stbPortal.value = "";
       els.stbMac.value = "";
       els.stbSerial.value = "";
@@ -1179,44 +1212,169 @@
       updateSourceTypeFields();
     }
 
-    function addSource() {
+    async function addSource() {
       const type = els.sourceType.value;
-      const name = els.sourceName.value.trim() || (type === "xtream" ? "Xtream Kaynağı" : (type === "stb" ? "STBEmu Kaynağı" : "M3U Kaynağı"));
+      const defaultName = type === "xtream" ? "Xtream Kaynağı" : (type === "stb" ? "STBEmu Kaynağı" : (type === "file" ? "M3U Dosyası" : "M3U Kaynağı"));
+      const name = els.sourceName.value.trim() || defaultName;
 
-      if (type === "m3u") {
-        const url = els.sourceUrl.value.trim();
-        if (!url) return alert("M3U / M3U8 linki gir.");
-        sources.push({ id: makeId(), type, name, url });
-      } else if (type === "xtream") {
-        const server = normalizeServer(els.xtreamServer.value);
-        const username = els.xtreamUsername.value.trim();
-        const password = els.xtreamPassword.value.trim();
-        const mode = els.xtreamMode.value;
+      try {
+        if (type === "m3u") {
+          const url = els.sourceUrl.value.trim();
+          if (!url) return alert("M3U / M3U8 linki gir.");
+          sources.push({ id: makeId(), type, name, url });
+        } else if (type === "file") {
+          const file = els.sourceFile && els.sourceFile.files ? els.sourceFile.files[0] : null;
+          if (!file) return alert("M3U / M3U8 dosyası seç.");
+          const content = await readTextFile(file);
+          const parsed = parseM3U(content);
+          if (!parsed.length) return alert("Dosya okundu ama M3U kanal listesi bulunamadı.");
+          sources.push({ id: makeId(), type, name: els.sourceName.value.trim() || file.name || name, fileName: file.name || "playlist.m3u", content });
+        } else if (type === "xtream") {
+          const server = normalizeServer(els.xtreamServer.value);
+          const username = els.xtreamUsername.value.trim();
+          const password = els.xtreamPassword.value.trim();
+          const mode = els.xtreamMode.value;
 
-        if (!server || !username || !password) {
-          return alert("Xtream için sunucu, kullanıcı adı ve şifre zorunlu.");
+          if (!server || !username || !password) {
+            return alert("Xtream için sunucu, kullanıcı adı ve şifre zorunlu.");
+          }
+
+          sources.push({ id: makeId(), type, name, server, username, password, mode });
+        } else if (type === "stb") {
+          const portal = normalizePortalUrl(els.stbPortal.value);
+          const mac = normalizeMac(els.stbMac.value);
+          const serial = els.stbSerial.value.trim();
+          const deviceId = els.stbDeviceId.value.trim();
+
+          if (!portal || !mac) {
+            return alert("STBEmu için portal URL ve MAC adresi zorunlu.");
+          }
+
+          sources.push({ id: makeId(), type, name, portal, mac, serial, deviceId });
         }
 
-        sources.push({ id: makeId(), type, name, server, username, password, mode });
-      } else if (type === "stb") {
-        const portal = normalizePortalUrl(els.stbPortal.value);
-        const mac = normalizeMac(els.stbMac.value);
-        const serial = els.stbSerial.value.trim();
-        const deviceId = els.stbDeviceId.value.trim();
-
-        if (!portal || !mac) {
-          return alert("STBEmu için portal URL ve MAC adresi zorunlu.");
-        }
-
-        sources.push({ id: makeId(), type, name, portal, mac, serial, deviceId });
+        saveSources();
+        localStorage.setItem(LS.activeSourceId, sources[sources.length - 1].id);
+        renderSourceSelect();
+        renderSourcesList();
+        clearSourceForm();
+        alert("Kaynak kaydedildi.");
+      } catch (err) {
+        console.error(err);
+        alert(formatError(err));
       }
+    }
 
-      saveSources();
-      localStorage.setItem(LS.activeSourceId, sources[sources.length - 1].id);
-      renderSourceSelect();
-      renderSourcesList();
-      clearSourceForm();
-      alert("Kaynak kaydedildi.");
+    function buildXtreamM3uUrl(server, username, password, output = "m3u8") {
+      const normalized = normalizeServer(server);
+      const u = encodeURIComponent(String(username || "").trim());
+      const p = encodeURIComponent(String(password || "").trim());
+      if (!normalized || !u || !p) {
+        throw new Error("Xtream için sunucu, kullanıcı adı ve şifre zorunlu.");
+      }
+      return `${normalized}/get.php?username=${u}&password=${p}&type=m3u_plus&output=${encodeURIComponent(output)}`;
+    }
+
+    function getXtreamM3uUrlFromForm() {
+      return buildXtreamM3uUrl(
+        els.xtreamServer.value,
+        els.xtreamUsername.value,
+        els.xtreamPassword.value,
+        "m3u8"
+      );
+    }
+
+    function safeDownloadName(name, fallback = "xtream-playlist") {
+      const base = String(name || fallback)
+        .trim()
+        .replace(/[\/:*?"<>|]+/g, "-")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-|-$/g, "") || fallback;
+      return base.toLowerCase().endsWith(".m3u") || base.toLowerCase().endsWith(".m3u8") ? base : `${base}.m3u`;
+    }
+
+    function downloadTextFile(filename, text) {
+      const blob = new Blob([text], { type: "audio/x-mpegurl;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function convertXtreamToM3uFile() {
+      let m3uUrl = "";
+      try {
+        m3uUrl = getXtreamM3uUrlFromForm();
+        const name = els.sourceName.value.trim() || "Xtream M3U";
+        const filename = safeDownloadName(name);
+        els.xtreamConvertMessage.textContent = "Xtream M3U dosyası çekiliyor...";
+
+        const response = await fetch(m3uUrl, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("M3U dosyası alınamadı. HTTP durum: " + response.status);
+        }
+
+        const text = await response.text();
+        if (!isPlaylistText(text)) {
+          throw new Error("Sunucudan gelen içerik M3U playlist gibi görünmüyor.");
+        }
+
+        const parsed = parseM3U(text);
+        if (!parsed.length) {
+          throw new Error("M3U dosyası alındı ama kanal bulunamadı.");
+        }
+
+        downloadTextFile(filename, text);
+
+        const id = makeId();
+        sources.push({
+          id,
+          type: "file",
+          name,
+          fileName: filename,
+          content: text,
+          convertedFrom: "xtream",
+          convertedAt: new Date().toISOString()
+        });
+        saveSources();
+        localStorage.setItem(LS.activeSourceId, id);
+        renderSourceSelect();
+        renderSourcesList();
+        els.xtreamConvertMessage.textContent = `Hazır: ${parsed.length} kanal bulundu. Dosya indirildi ve kaynak olarak kaydedildi.`;
+      } catch (err) {
+        console.warn("Xtream dosyaya çevirme başarısız:", err);
+        const message = formatError(err);
+        els.xtreamConvertMessage.textContent = "Tarayıcı dosyayı doğrudan alamadı. Yeni sekmede açılıyor; açılan sayfayı .m3u olarak kaydedip M3U Dosyası Yükle alanından ekleyebilirsin. Hata: " + message;
+        if (m3uUrl) {
+          window.open(m3uUrl, "_blank", "noopener,noreferrer");
+        } else {
+          alert(message);
+        }
+      }
+    }
+
+    function openXtreamM3uFromForm() {
+      try {
+        const url = getXtreamM3uUrlFromForm();
+        els.xtreamConvertMessage.textContent = "M3U indirme linki yeni sekmede açıldı.";
+        window.open(url, "_blank", "noopener,noreferrer");
+      } catch (err) {
+        alert(formatError(err));
+      }
+    }
+
+    function readTextFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Dosya okunamadı."));
+        reader.readAsText(file, "UTF-8");
+      });
     }
 
     function makeId() {
@@ -1278,6 +1436,9 @@
           detail.textContent = `Xtream | ${src.server} | kullanıcı: ${src.username}`;
         } else if (src.type === "stb") {
           detail.textContent = `STBEmu | ${src.portal} | MAC: ${src.mac}`;
+        } else if (src.type === "file") {
+          const count = parseM3U(src.content || "").length;
+          detail.textContent = `M3U Dosyası | ${src.fileName || "playlist.m3u"} | ${count} kanal`;
         } else {
           detail.textContent = src.url;
         }
@@ -1351,6 +1512,8 @@
           await loadXtream(src);
         } else if (src.type === "stb") {
           await loadStbEmu(src);
+        } else if (src.type === "file") {
+          loadM3uText(src.content || "", src.name, src.fileName);
         } else {
           await loadM3uOrDirect(src.url, src.name);
         }
@@ -1363,6 +1526,7 @@
     function getSourceTypeLabel(type) {
       if (type === "xtream") return "Xtream";
       if (type === "stb") return "STBEmu";
+      if (type === "file") return "M3U Dosyası";
       return "M3U/M3U8";
     }
 
@@ -1545,6 +1709,18 @@
       await loadM3uOrDirect(m3uUrl, src.name);
     }
 
+    function loadM3uText(text, sourceName, fileName = "") {
+      const trimmedText = String(text || "").trim();
+      if (!trimmedText) throw new Error("Dosya içeriği boş.");
+      if (!isPlaylistText(trimmedText)) throw new Error("Dosya M3U playlist gibi görünmüyor.");
+
+      channels = parseM3U(trimmedText).map(c => Object.assign(c, { source: sourceName || "M3U Dosyası" }));
+      if (!channels.length) {
+        throw new Error("Dosya okundu ama kanal bulunamadı.");
+      }
+      afterChannelsLoaded(`${sourceName || fileName || "M3U Dosyası"} yüklendi. ${channels.length} kanal bulundu.`);
+    }
+
     async function loadM3uOrDirect(url, sourceName) {
       const trimmedUrl = String(url || "").trim();
       if (!trimmedUrl) throw new Error("Boş link.");
@@ -1569,11 +1745,7 @@
 
       const trimmedText = text.trim();
       if (fetched && isPlaylistText(trimmedText)) {
-        channels = parseM3U(trimmedText).map(c => Object.assign(c, { source: sourceName || "M3U" }));
-        if (!channels.length) {
-          throw new Error("Playlist okundu ama kanal bulunamadı.");
-        }
-        afterChannelsLoaded(`${sourceName || "Playlist"} yüklendi. ${channels.length} kanal bulundu.`);
+        loadM3uText(trimmedText, sourceName || "Playlist");
         return;
       }
 
