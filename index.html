@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kişisel IPTV Paneli</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #111118;
+      --panel: #1b1b25;
+      --panel-2: #242434;
+      --field: #2d2d3d;
+      --text: #ffffff;
+      --muted: #c8c8d8;
+      --line: #3b3b50;
+      --blue: #2378d8;
+      --green: #159447;
+      --red: #d94848;
+      --orange: #d89523;
+      --focus: #f2d15d;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: white;
+      background: var(--blue);
+      font-weight: 700;
+      cursor: pointer;
+      min-height: 46px;
+    }
+
+    button:hover { filter: brightness(1.08); }
+    button:focus, input:focus, select:focus, textarea:focus {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    button.secondary { background: var(--panel-2); }
+    button.green { background: var(--green); }
+    button.red { background: var(--red); }
+    button.orange { background: var(--orange); }
+    button.small {
+      padding: 8px 10px;
+      min-height: 36px;
+      font-size: 14px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px;
+      background: var(--field);
+      color: var(--text);
+    }
+
+    textarea { min-height: 90px; resize: vertical; }
+
+    .hidden { display: none !important; }
+
+    .login-screen {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .login-box {
+      width: 100%;
+      max-width: 430px;
+      background: var(--panel);
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 16px 60px rgba(0,0,0,0.35);
+    }
+
+    .login-box h1 { margin: 0 0 8px; font-size: 30px; }
+    .muted { color: var(--muted); }
+    .error { color: #ff8585; }
+    .ok { color: #82f0a8; }
+
+    .app {
+      height: 100vh;
+      padding: 16px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 10px;
+      align-items: center;
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 12px;
+      margin-bottom: 14px;
+      flex: 0 0 auto;
+    }
+
+    .source-row {
+      display: grid;
+      grid-template-columns: minmax(160px, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 390px 1fr;
+      gap: 14px;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+
+    .sidebar, .player, .admin-panel {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .sidebar {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .player {
+      min-width: 0;
+      min-height: 0;
+      overflow: auto;
+    }
+
+    .title-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+    }
+
+    .badge {
+      display: inline-block;
+      background: var(--panel-2);
+      color: #dfe4ff;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .tools {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .two {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .three {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+    }
+
+    .scrollbox {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 3px;
+      min-height: 0;
+      overscroll-behavior: contain;
+    }
+
+    .category {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 10px;
+      background: #171720;
+    }
+
+    .category-header {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 12px;
+      cursor: pointer;
+      background: var(--panel-2);
+      font-weight: 800;
+    }
+
+    .category-header:hover { filter: brightness(1.1); }
+
+    .category-body {
+      display: none;
+    }
+
+    .category.open .category-body {
+      display: block;
+    }
+
+    .channel {
+      display: grid;
+      grid-template-columns: 34px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 9px 10px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .channel:hover { background: rgba(255,255,255,0.04); }
+    .channel.active { background: rgba(35,120,216,0.28); }
+
+    .channel-logo {
+      width: 34px;
+      height: 34px;
+      object-fit: contain;
+      border-radius: 6px;
+      background: #0b0b10;
+    }
+
+    .channel-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    video {
+      width: 100%;
+      min-height: 280px;
+      max-height: 70vh;
+      background: black;
+      border-radius: 16px;
+    }
+
+    .now-title {
+      font-size: 30px;
+      font-weight: 900;
+      line-height: 1.2;
+      margin-bottom: 6px;
+      word-break: break-word;
+    }
+
+    .now-url {
+      color: var(--muted);
+      font-size: 13px;
+      word-break: break-all;
+      margin-bottom: 14px;
+    }
+
+    .status {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #161622;
+      color: #e6e6f8;
+      line-height: 1.45;
+      white-space: pre-line;
+    }
+
+    .admin-wrap {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      padding: 18px;
+      z-index: 20;
+      overflow: auto;
+    }
+
+    .admin-panel {
+      max-width: 1120px;
+      margin: 0 auto;
+      box-shadow: 0 20px 80px rgba(0,0,0,0.5);
+    }
+
+    .admin-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .tabs button.active { background: var(--green); }
+
+    .grid-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      background: #15151e;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .grid-form .full { grid-column: 1 / -1; }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: #efefff;
+      font-weight: 700;
+    }
+
+    label span {
+      color: var(--muted);
+      font-weight: 400;
+      font-size: 13px;
+    }
+
+    .list-item {
+      border: 1px solid var(--line);
+      background: #15151e;
+      border-radius: 14px;
+      padding: 12px;
+      margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .list-item strong { display: block; margin-bottom: 4px; }
+    .list-item code { color: #d9defc; word-break: break-all; }
+
+    .cat-setting {
+      display: grid;
+      grid-template-columns: auto minmax(170px, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      margin-bottom: 8px;
+      background: #15151e;
+    }
+
+    .cat-setting.drag-over {
+      border-color: var(--focus);
+      background: #222234;
+    }
+
+    .drag-handle {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: var(--panel-2);
+      color: var(--muted);
+      cursor: grab;
+      user-select: none;
+      font-weight: 900;
+    }
+
+    .cat-order-actions {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .direct-box {
+      background: #15151e;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 980px) {
+      .app { overflow: auto; height: auto; min-height: 100vh; }
+      .topbar { grid-template-columns: 1fr; }
+      .source-row { grid-template-columns: 1fr; }
+      .layout { grid-template-columns: 1fr; min-height: 0; }
+      .sidebar { height: 70vh; max-height: 70vh; }
+      .grid-form { grid-template-columns: 1fr; }
+      .cat-setting { grid-template-columns: 1fr; }
+      .three, .two { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loginScreen" class="login-screen">
+    <div class="login-box">
+      <h1>Kişisel IPTV Paneli</h1>
+      <p class="muted">Panele giriş için şifreni yaz.</p>
+      <input id="loginPassword" type="password" placeholder="Panel şifresi" autocomplete="current-password" />
+      <button id="loginButton">Giriş Yap</button>
+      <p id="loginMessage" class="error"></p>
+      <p class="muted">Varsayılan panel şifresi: <strong>1234</strong></p>
+    </div>
+  </div>
+
+  <div id="app" class="app hidden">
+    <div class="topbar">
+      <div class="source-row">
+        <select id="sourceSelect"></select>
+        <button id="loadSourceButton">Seçili Kaynağı Yükle</button>
+      </div>
+      <button id="adminButton" class="orange">Yönetici Paneli</button>
+      <button id="reloadButton" class="secondary">Yenile</button>
+      <button id="logoutButton" class="red">Çıkış</button>
+    </div>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="title-line">
+          <h2>Kanallar</h2>
+          <span id="channelCountBadge" class="badge">0 kanal</span>
+        </div>
+        <div class="tools">
+          <input id="searchInput" type="search" placeholder="Kanal ara..." />
+          <button id="playFirstButton" class="green">İlk Kanalı Oynat</button>
+        </div>
+        <div id="categoryContainer" class="scrollbox"></div>
+      </aside>
+
+      <main class="player">
+        <div id="nowTitle" class="now-title">Kanal seçilmedi</div>
+        <div id="nowUrl" class="now-url"></div>
+        <video id="video" controls autoplay playsinline></video>
+        <div class="three" style="margin-top:14px;">
+          <button id="prevButton" class="secondary">Önceki</button>
+          <button id="togglePlayButton" class="secondary">Duraklat/Oynat</button>
+          <button id="nextButton" class="secondary">Sonraki</button>
+        </div>
+        <div id="status" class="status">Yönetici panelinden M3U/M3U8, Xtream veya STBEmu kaynağı ekle, sonra buradan yükle.</div>
+      </main>
+    </div>
+  </div>
+
+  <div id="adminWrap" class="admin-wrap hidden">
+    <div class="admin-panel">
+      <div class="admin-head">
+        <div>
+          <h2>Yönetici Paneli</h2>
+          <div class="muted">Link ekleme, Xtream/STBEmu ekleme ve kategori ayarları buradan yapılır.</div>
+        </div>
+        <button id="closeAdminButton" class="secondary">Kapat</button>
+      </div>
+
+      <div id="adminLoginBox" class="grid-form">
+        <label class="full">Yönetici şifresi
+          <input id="adminPassword" type="password" placeholder="Yönetici şifresi" autocomplete="current-password" />
+        </label>
+        <button id="adminLoginButton" class="green">Yönetici Girişi</button>
+        <div id="adminLoginMessage" class="error"></div>
+      </div>
+
+      <div id="adminContent" class="hidden">
+        <div class="tabs">
+          <button id="tabSources" class="active">Kaynaklar</button>
+          <button id="tabCategories" class="secondary">Kategori Ayarları</button>
+          <button id="tabSettings" class="secondary">Şifreler / Veri</button>
+        </div>
+
+        <section id="sourcesSection">
+          <h3>Kaynak Ekle</h3>
+          <div class="grid-form">
+            <label>Kaynak tipi
+              <select id="sourceType">
+                <option value="m3u">M3U / M3U8 Link</option>
+                <option value="xtream">Xtream Codes</option>
+                <option value="stb">STBEmu / Stalker Portal</option>
+              </select>
+            </label>
+            <label>Görünen ad
+              <input id="sourceName" type="text" placeholder="Örn: Ev IPTV" />
+            </label>
+
+            <label id="m3uUrlLabel" class="full">M3U / M3U8 linki
+              <input id="sourceUrl" type="text" placeholder="https://.../playlist.m3u8 veya get.php?..." />
+              <span>Playlist linki veya tek yayın linki olabilir.</span>
+            </label>
+
+            <label id="xtreamServerLabel" class="hidden">Xtream sunucu URL
+              <input id="xtreamServer" type="text" placeholder="http://domain.com:8080" />
+            </label>
+            <label id="xtreamUserLabel" class="hidden">Xtream kullanıcı adı
+              <input id="xtreamUsername" type="text" placeholder="username" />
+            </label>
+            <label id="xtreamPassLabel" class="hidden">Xtream şifre
+              <input id="xtreamPassword" type="password" placeholder="password" />
+            </label>
+            <label id="xtreamModeLabel" class="hidden">Xtream yükleme yöntemi
+              <select id="xtreamMode">
+                <option value="api">Önce Xtream API dene</option>
+                <option value="m3u">M3U playlist olarak çek</option>
+              </select>
+              <span>API çalışmazsa otomatik M3U yöntemi denenir.</span>
+            </label>
+
+            <label id="stbPortalLabel" class="hidden">STBEmu portal URL
+              <input id="stbPortal" type="text" placeholder="http://domain.com/stalker_portal/c/ veya /portal.php" />
+              <span>Portal adresi /c/, /stalker_portal/c/ veya doğrudan portal.php olabilir.</span>
+            </label>
+            <label id="stbMacLabel" class="hidden">STBEmu MAC adresi
+              <input id="stbMac" type="text" placeholder="00:1A:79:12:34:56" />
+            </label>
+            <label id="stbSerialLabel" class="hidden">Seri numarası / SN <span>Opsiyonel</span>
+              <input id="stbSerial" type="text" placeholder="Opsiyonel" />
+            </label>
+            <label id="stbDeviceLabel" class="hidden">Device ID <span>Opsiyonel</span>
+              <input id="stbDeviceId" type="text" placeholder="Boş kalırsa MAC'ten üretilir" />
+            </label>
+            <label id="stbInfoLabel" class="full hidden"><span>Not: STBEmu/Stalker portalları çoğu zaman tarayıcıdan Cookie/User-Agent/CORS kısıtlaması nedeniyle doğrudan çalışmaz. Uygunsa denenir; hata alırsan yerel proxy/backend gerekir.</span></label>
+
+            <button id="addSourceButton" class="green">Kaynağı Kaydet</button>
+            <button id="clearFormButton" class="secondary">Formu Temizle</button>
+          </div>
+
+          <h3>Kayıtlı Kaynaklar</h3>
+          <div id="sourcesList"></div>
+
+          <div class="direct-box">
+            <h3>Geçici test alanı</h3>
+            <p class="muted">Bu alan kayıt yapmaz. Sadece hızlı test içindir.</p>
+            <input id="tempUrl" type="text" placeholder="M3U / M3U8 linki ile hızlı test" />
+            <button id="tempLoadButton" style="margin-top:10px;">Geçici Linki Yükle</button>
+          </div>
+        </section>
+
+        <section id="categoriesSection" class="hidden">
+          <h3>Kategori Göster/Gizle ve Sıralama</h3>
+          <p class="muted">Önce bir kaynak yükle. Sonra kategorileri tek tek veya topluca göster/gizle. Sıralamayı değiştirmek için kategorileri sürükleyip bırakabilir ya da Yukarı/Aşağı butonlarını kullanabilirsin.</p>
+          <div id="categorySettingsSourceInfo" class="status">Kategori ayarları yüklü kaynağa göre ayrı ayrı tutulur.</div>
+          <div class="two" style="margin-bottom:12px;">
+            <button id="showAllCategoriesButton" class="green">Tüm Kategorileri Göster</button>
+            <button id="hideAllCategoriesButton" class="secondary">Tüm Kategorileri Gizle</button>
+          </div>
+          <div class="two" style="margin-bottom:12px;">
+            <button id="resetCategoryOrderButton" class="secondary">Sıralamayı A-Z Sıfırla</button>
+            <button id="resetCategorySettingsButton" class="red">Kategori Ayarlarını Sıfırla</button>
+          </div>
+          <div id="categorySettingsList"></div>
+        </section>
+
+        <section id="settingsSection" class="hidden">
+          <h3>Şifre Ayarları</h3>
+          <div class="grid-form">
+            <label>Panel şifresi
+              <input id="newPanelPassword" type="text" placeholder="Yeni panel şifresi" />
+            </label>
+            <label>Yönetici şifresi
+              <input id="newAdminPassword" type="text" placeholder="Yeni yönetici şifresi" />
+            </label>
+            <button id="savePasswordsButton" class="green">Şifreleri Kaydet</button>
+            <div class="muted">Tek dosya olduğu için şifreler tarayıcı localStorage alanında tutulur.</div>
+          </div>
+
+          <h3>Veri İşlemleri</h3>
+          <div class="two">
+            <button id="exportDataButton" class="secondary">Ayarları Dışa Aktar</button>
+            <button id="clearAllButton" class="red">Tüm Kayıtları Sil</button>
+          </div>
+          <textarea id="exportBox" placeholder="Dışa aktarılan veri burada görünür." style="margin-top:12px;"></textarea>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const DEFAULT_PANEL_PASSWORD = "1234";
+    const DEFAULT_ADMIN_PASSWORD = "admin1234";
+
+    const LS = {
+      loggedIn: "iptv_logged_in_v4",
+      panelPass: "iptv_panel_password_v4",
+      adminPass: "iptv_admin_password_v4",
+      sources: "iptv_sources_v4",
+      activeSourceId: "iptv_active_source_id_v4",
+      categorySettings: "iptv_category_settings_v4",
+      categoryOrder: "iptv_category_order_v4"
+    };
+
+    let sources = [];
+    let channels = [];
+    let filteredChannels = [];
+    let grouped = new Map();
+    let currentIndex = -1;
+    let hls = null;
+    let draggedCategory = null;
+    let adminUnlocked = false;
+    let categoryOpenState = {};
+    let activeCategorySourceKey = "";
+    let activeCategorySourceName = "";
+
+    const $ = (id) => document.getElementById(id);
+
+    const els = {
+      loginScreen: $("loginScreen"),
+      app: $("app"),
+      loginPassword: $("loginPassword"),
+      loginButton: $("loginButton"),
+      loginMessage: $("loginMessage"),
+      sourceSelect: $("sourceSelect"),
+      loadSourceButton: $("loadSourceButton"),
+      adminButton: $("adminButton"),
+      reloadButton: $("reloadButton"),
+      logoutButton: $("logoutButton"),
+      searchInput: $("searchInput"),
+      playFirstButton: $("playFirstButton"),
+      categoryContainer: $("categoryContainer"),
+      channelCountBadge: $("channelCountBadge"),
+      nowTitle: $("nowTitle"),
+      nowUrl: $("nowUrl"),
+      video: $("video"),
+      status: $("status"),
+      prevButton: $("prevButton"),
+      nextButton: $("nextButton"),
+      togglePlayButton: $("togglePlayButton"),
+      adminWrap: $("adminWrap"),
+      closeAdminButton: $("closeAdminButton"),
+      adminLoginBox: $("adminLoginBox"),
+      adminPassword: $("adminPassword"),
+      adminLoginButton: $("adminLoginButton"),
+      adminLoginMessage: $("adminLoginMessage"),
+      adminContent: $("adminContent"),
+      tabSources: $("tabSources"),
+      tabCategories: $("tabCategories"),
+      tabSettings: $("tabSettings"),
+      sourcesSection: $("sourcesSection"),
+      categoriesSection: $("categoriesSection"),
+      settingsSection: $("settingsSection"),
+      sourceType: $("sourceType"),
+      sourceName: $("sourceName"),
+      sourceUrl: $("sourceUrl"),
+      m3uUrlLabel: $("m3uUrlLabel"),
+      xtreamServerLabel: $("xtreamServerLabel"),
+      xtreamUserLabel: $("xtreamUserLabel"),
+      xtreamPassLabel: $("xtreamPassLabel"),
+      xtreamModeLabel: $("xtreamModeLabel"),
+      xtreamServer: $("xtreamServer"),
+      xtreamUsername: $("xtreamUsername"),
+      xtreamPassword: $("xtreamPassword"),
+      xtreamMode: $("xtreamMode"),
+      stbPortalLabel: $("stbPortalLabel"),
+      stbMacLabel: $("stbMacLabel"),
+      stbSerialLabel: $("stbSerialLabel"),
+      stbDeviceLabel: $("stbDeviceLabel"),
+      stbInfoLabel: $("stbInfoLabel"),
+      stbPortal: $("stbPortal"),
+      stbMac: $("stbMac"),
+      stbSerial: $("stbSerial"),
+      stbDeviceId: $("stbDeviceId"),
+      addSourceButton: $("addSourceButton"),
+      clearFormButton: $("clearFormButton"),
+      sourcesList: $("sourcesList"),
+      tempUrl: $("tempUrl"),
+      tempLoadButton: $("tempLoadButton"),
+      categorySettingsList: $("categorySettingsList"),
+      categorySettingsSourceInfo: $("categorySettingsSourceInfo"),
+      showAllCategoriesButton: $("showAllCategoriesButton"),
+      hideAllCategoriesButton: $("hideAllCategoriesButton"),
+      resetCategoryOrderButton: $("resetCategoryOrderButton"),
+      resetCategorySettingsButton: $("resetCategorySettingsButton"),
+      newPanelPassword: $("newPanelPassword"),
+      newAdminPassword: $("newAdminPassword"),
+      savePasswordsButton: $("savePasswordsButton"),
+      exportDataButton: $("exportDataButton"),
+      clearAllButton: $("clearAllButton"),
+      exportBox: $("exportBox")
+    };
+
+    function getPanelPassword() {
+      return localStorage.getItem(LS.panelPass) || DEFAULT_PANEL_PASSWORD;
+    }
+
+    function getAdminPassword() {
+      return localStorage.getItem(LS.adminPass) || DEFAULT_ADMIN_PASSWORD;
+    }
+
+    function setStatus(message, isError = false) {
+      els.status.textContent = message;
+      els.status.style.color = isError ? "#ffaaaa" : "#e6e6f8";
+    }
+
+    function normalizeServer(url) {
+      return String(url || "").trim().replace(/\/+$/, "");
+    }
+
+    function safeJsonParse(value, fallback) {
+      try {
+        return JSON.parse(value) || fallback;
+      } catch (_) {
+        return fallback;
+      }
+    }
+
+    function loadSources() {
+      sources = safeJsonParse(localStorage.getItem(LS.sources), []);
+      if (!Array.isArray(sources)) sources = [];
+    }
+
+    function saveSources() {
+      localStorage.setItem(LS.sources, JSON.stringify(sources));
+    }
+
+    function getCurrentCategorySourceKey() {
+      return activeCategorySourceKey || localStorage.getItem(LS.activeSourceId) || "__default__";
+    }
+
+    function getAllCategorySettings() {
+      const all = safeJsonParse(localStorage.getItem(LS.categorySettings), {});
+      return all && typeof all === "object" && !Array.isArray(all) ? all : {};
+    }
+
+    function saveAllCategorySettings(all) {
+      localStorage.setItem(LS.categorySettings, JSON.stringify(all || {}));
+    }
+
+    function getCategorySettings(sourceKey = getCurrentCategorySourceKey()) {
+      const all = getAllCategorySettings();
+      const value = all[sourceKey];
+      if (value && typeof value === "object" && !Array.isArray(value)) return value;
+
+      const legacy = {};
+      Object.entries(all).forEach(([group, setting]) => {
+        if (setting && typeof setting === "object" && typeof setting.visible === "boolean") {
+          legacy[group] = setting;
+        }
+      });
+      return Object.keys(legacy).length ? legacy : {};
+    }
+
+    function saveCategorySettings(settings, sourceKey = getCurrentCategorySourceKey()) {
+      const all = getAllCategorySettings();
+      all[sourceKey] = settings || {};
+      saveAllCategorySettings(all);
+    }
+
+    function getAllCategoryOrder() {
+      const all = safeJsonParse(localStorage.getItem(LS.categoryOrder), {});
+      return all && typeof all === "object" && !Array.isArray(all) ? all : {};
+    }
+
+    function saveAllCategoryOrder(all) {
+      localStorage.setItem(LS.categoryOrder, JSON.stringify(all || {}));
+    }
+
+    function getCategoryOrder(sourceKey = getCurrentCategorySourceKey()) {
+      const stored = safeJsonParse(localStorage.getItem(LS.categoryOrder), {});
+      if (Array.isArray(stored)) return stored;
+      const order = stored && typeof stored === "object" ? stored[sourceKey] : [];
+      return Array.isArray(order) ? order : [];
+    }
+
+    function saveCategoryOrder(order, sourceKey = getCurrentCategorySourceKey()) {
+      const all = getAllCategoryOrder();
+      all[sourceKey] = Array.isArray(order) ? order : [];
+      saveAllCategoryOrder(all);
+    }
+
+    function removeCategoryDataForSource(sourceKey) {
+      const settings = getAllCategorySettings();
+      const order = getAllCategoryOrder();
+      delete settings[sourceKey];
+      delete order[sourceKey];
+      saveAllCategorySettings(settings);
+      saveAllCategoryOrder(order);
+    }
+
+    function getCatSetting(group) {
+      const settings = getCategorySettings();
+      const value = settings[group];
+      return Object.assign({ visible: true }, value || {});
+    }
+
+    function setCatSetting(group, partial) {
+      const settings = getCategorySettings();
+      settings[group] = Object.assign({ visible: true }, settings[group] || {}, partial);
+      saveCategorySettings(settings);
+    }
+
+    function init() {
+      loadSources();
+      seedExampleSourceIfEmpty();
+      renderSourceSelect();
+      renderSourcesList();
+      bindEvents();
+
+      if (localStorage.getItem(LS.loggedIn) === "yes") {
+        showApp();
+      }
+    }
+
+    function seedExampleSourceIfEmpty() {
+      if (sources.length) return;
+      sources.push({
+        id: makeId(),
+        type: "m3u",
+        name: "Free-TV Test Playlist",
+        url: "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"
+      });
+      saveSources();
+      localStorage.setItem(LS.activeSourceId, sources[0].id);
+    }
+
+    function bindEvents() {
+      els.loginButton.addEventListener("click", login);
+      els.loginPassword.addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
+      els.logoutButton.addEventListener("click", logout);
+      els.adminButton.addEventListener("click", openAdmin);
+      els.closeAdminButton.addEventListener("click", closeAdmin);
+      els.adminLoginButton.addEventListener("click", adminLogin);
+      els.adminPassword.addEventListener("keydown", (e) => { if (e.key === "Enter") adminLogin(); });
+      els.loadSourceButton.addEventListener("click", loadSelectedSource);
+      els.reloadButton.addEventListener("click", loadSelectedSource);
+      els.searchInput.addEventListener("input", renderChannels);
+      els.playFirstButton.addEventListener("click", playFirstVisible);
+      els.prevButton.addEventListener("click", playPrevious);
+      els.nextButton.addEventListener("click", playNext);
+      els.togglePlayButton.addEventListener("click", togglePlay);
+      els.sourceType.addEventListener("change", updateSourceTypeFields);
+      els.addSourceButton.addEventListener("click", addSource);
+      els.clearFormButton.addEventListener("click", clearSourceForm);
+      els.tempLoadButton.addEventListener("click", loadTempUrl);
+      els.tabSources.addEventListener("click", () => showTab("sources"));
+      els.tabCategories.addEventListener("click", () => showTab("categories"));
+      els.tabSettings.addEventListener("click", () => showTab("settings"));
+      els.showAllCategoriesButton.addEventListener("click", () => bulkUpdateCategories({ visible: true }));
+      els.hideAllCategoriesButton.addEventListener("click", () => bulkUpdateCategories({ visible: false }));
+      els.resetCategoryOrderButton.addEventListener("click", resetCategoryOrder);
+      els.resetCategorySettingsButton.addEventListener("click", resetCategorySettings);
+      els.savePasswordsButton.addEventListener("click", savePasswords);
+      els.exportDataButton.addEventListener("click", exportData);
+      els.clearAllButton.addEventListener("click", clearAllData);
+
+      document.addEventListener("keydown", (e) => {
+        if (els.app.classList.contains("hidden")) return;
+        if (e.key === "ArrowRight") playNext();
+        if (e.key === "ArrowLeft") playPrevious();
+        if (e.key === " ") {
+          const tag = document.activeElement && document.activeElement.tagName;
+          if (!["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) {
+            e.preventDefault();
+            togglePlay();
+          }
+        }
+      });
+    }
+
+    function login() {
+      if (els.loginPassword.value === getPanelPassword()) {
+        localStorage.setItem(LS.loggedIn, "yes");
+        els.loginMessage.textContent = "";
+        showApp();
+      } else {
+        els.loginMessage.textContent = "Şifre hatalı.";
+      }
+    }
+
+    function showApp() {
+      els.loginScreen.classList.add("hidden");
+      els.app.classList.remove("hidden");
+      renderSourceSelect();
+    }
+
+    function logout() {
+      localStorage.removeItem(LS.loggedIn);
+      location.reload();
+    }
+
+    function openAdmin() {
+      els.adminWrap.classList.remove("hidden");
+      if (!adminUnlocked) {
+        els.adminLoginBox.classList.remove("hidden");
+        els.adminContent.classList.add("hidden");
+        setTimeout(() => els.adminPassword.focus(), 50);
+      } else {
+        els.adminLoginBox.classList.add("hidden");
+        els.adminContent.classList.remove("hidden");
+        renderSourcesList();
+        renderCategorySettingsList();
+      }
+    }
+
+    function closeAdmin() {
+      els.adminWrap.classList.add("hidden");
+    }
+
+    function adminLogin() {
+      if (els.adminPassword.value === getAdminPassword()) {
+        adminUnlocked = true;
+        els.adminLoginMessage.textContent = "";
+        els.adminLoginBox.classList.add("hidden");
+        els.adminContent.classList.remove("hidden");
+        renderSourcesList();
+        renderCategorySettingsList();
+      } else {
+        els.adminLoginMessage.textContent = "Yönetici şifresi hatalı.";
+      }
+    }
+
+    function showTab(name) {
+      const buttons = [els.tabSources, els.tabCategories, els.tabSettings];
+      buttons.forEach(b => b.classList.remove("active"));
+      buttons.forEach(b => b.classList.add("secondary"));
+      [els.sourcesSection, els.categoriesSection, els.settingsSection].forEach(s => s.classList.add("hidden"));
+
+      if (name === "sources") {
+        els.tabSources.classList.add("active");
+        els.tabSources.classList.remove("secondary");
+        els.sourcesSection.classList.remove("hidden");
+      } else if (name === "categories") {
+        els.tabCategories.classList.add("active");
+        els.tabCategories.classList.remove("secondary");
+        els.categoriesSection.classList.remove("hidden");
+        renderCategorySettingsList();
+      } else {
+        els.tabSettings.classList.add("active");
+        els.tabSettings.classList.remove("secondary");
+        els.settingsSection.classList.remove("hidden");
+      }
+    }
+
+    function updateSourceTypeFields() {
+      const type = els.sourceType.value;
+      const isXtream = type === "xtream";
+      const isStb = type === "stb";
+      els.m3uUrlLabel.classList.toggle("hidden", isXtream || isStb);
+      els.xtreamServerLabel.classList.toggle("hidden", !isXtream);
+      els.xtreamUserLabel.classList.toggle("hidden", !isXtream);
+      els.xtreamPassLabel.classList.toggle("hidden", !isXtream);
+      els.xtreamModeLabel.classList.toggle("hidden", !isXtream);
+      els.stbPortalLabel.classList.toggle("hidden", !isStb);
+      els.stbMacLabel.classList.toggle("hidden", !isStb);
+      els.stbSerialLabel.classList.toggle("hidden", !isStb);
+      els.stbDeviceLabel.classList.toggle("hidden", !isStb);
+      els.stbInfoLabel.classList.toggle("hidden", !isStb);
+    }
+
+    function clearSourceForm() {
+      els.sourceName.value = "";
+      els.sourceUrl.value = "";
+      els.xtreamServer.value = "";
+      els.xtreamUsername.value = "";
+      els.xtreamPassword.value = "";
+      els.xtreamMode.value = "api";
+      els.stbPortal.value = "";
+      els.stbMac.value = "";
+      els.stbSerial.value = "";
+      els.stbDeviceId.value = "";
+      els.sourceType.value = "m3u";
+      updateSourceTypeFields();
+    }
+
+    function addSource() {
+      const type = els.sourceType.value;
+      const name = els.sourceName.value.trim() || (type === "xtream" ? "Xtream Kaynağı" : (type === "stb" ? "STBEmu Kaynağı" : "M3U Kaynağı"));
+
+      if (type === "m3u") {
+        const url = els.sourceUrl.value.trim();
+        if (!url) return alert("M3U / M3U8 linki gir.");
+        sources.push({ id: makeId(), type, name, url });
+      } else if (type === "xtream") {
+        const server = normalizeServer(els.xtreamServer.value);
+        const username = els.xtreamUsername.value.trim();
+        const password = els.xtreamPassword.value.trim();
+        const mode = els.xtreamMode.value;
+
+        if (!server || !username || !password) {
+          return alert("Xtream için sunucu, kullanıcı adı ve şifre zorunlu.");
+        }
+
+        sources.push({ id: makeId(), type, name, server, username, password, mode });
+      } else if (type === "stb") {
+        const portal = normalizePortalUrl(els.stbPortal.value);
+        const mac = normalizeMac(els.stbMac.value);
+        const serial = els.stbSerial.value.trim();
+        const deviceId = els.stbDeviceId.value.trim();
+
+        if (!portal || !mac) {
+          return alert("STBEmu için portal URL ve MAC adresi zorunlu.");
+        }
+
+        sources.push({ id: makeId(), type, name, portal, mac, serial, deviceId });
+      }
+
+      saveSources();
+      localStorage.setItem(LS.activeSourceId, sources[sources.length - 1].id);
+      renderSourceSelect();
+      renderSourcesList();
+      clearSourceForm();
+      alert("Kaynak kaydedildi.");
+    }
+
+    function makeId() {
+      return "src_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 8);
+    }
+
+    function getSourceKey(src) {
+      if (src && src.id) return String(src.id);
+      if (src && src.name) return "source_" + String(src.name).toLowerCase().replace(/[^a-z0-9ğüşöçıİĞÜŞÖÇ]+/gi, "_");
+      return "__default__";
+    }
+
+    function renderSourceSelect() {
+      loadSources();
+      const activeId = localStorage.getItem(LS.activeSourceId);
+      els.sourceSelect.innerHTML = "";
+
+      if (!sources.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "Kayıtlı kaynak yok";
+        els.sourceSelect.appendChild(opt);
+        return;
+      }
+
+      sources.forEach(src => {
+        const opt = document.createElement("option");
+        opt.value = src.id;
+        opt.textContent = `${src.name} (${getSourceTypeLabel(src.type)})`;
+        els.sourceSelect.appendChild(opt);
+      });
+
+      if (activeId && sources.some(s => s.id === activeId)) {
+        els.sourceSelect.value = activeId;
+      } else {
+        els.sourceSelect.value = sources[0].id;
+        localStorage.setItem(LS.activeSourceId, sources[0].id);
+      }
+    }
+
+    function renderSourcesList() {
+      loadSources();
+      els.sourcesList.innerHTML = "";
+
+      if (!sources.length) {
+        els.sourcesList.innerHTML = '<div class="muted">Henüz kayıtlı kaynak yok.</div>';
+        return;
+      }
+
+      sources.forEach(src => {
+        const item = document.createElement("div");
+        item.className = "list-item";
+
+        const left = document.createElement("div");
+        const title = document.createElement("strong");
+        title.textContent = src.name;
+        const detail = document.createElement("code");
+        if (src.type === "xtream") {
+          detail.textContent = `Xtream | ${src.server} | kullanıcı: ${src.username}`;
+        } else if (src.type === "stb") {
+          detail.textContent = `STBEmu | ${src.portal} | MAC: ${src.mac}`;
+        } else {
+          detail.textContent = src.url;
+        }
+        left.appendChild(title);
+        left.appendChild(detail);
+
+        const actions = document.createElement("div");
+        actions.className = "two";
+        const loadBtn = document.createElement("button");
+        loadBtn.className = "small green";
+        loadBtn.textContent = "Yükle";
+        loadBtn.onclick = () => {
+          localStorage.setItem(LS.activeSourceId, src.id);
+          renderSourceSelect();
+          closeAdmin();
+          loadSelectedSource();
+        };
+        const delBtn = document.createElement("button");
+        delBtn.className = "small red";
+        delBtn.textContent = "Sil";
+        delBtn.onclick = () => deleteSource(src.id);
+        actions.appendChild(loadBtn);
+        actions.appendChild(delBtn);
+
+        item.appendChild(left);
+        item.appendChild(actions);
+        els.sourcesList.appendChild(item);
+      });
+    }
+
+    function deleteSource(id) {
+      if (!confirm("Bu kaynağı silmek istiyor musun?")) return;
+      sources = sources.filter(s => s.id !== id);
+      removeCategoryDataForSource(id);
+      saveSources();
+      if (localStorage.getItem(LS.activeSourceId) === id) {
+        localStorage.setItem(LS.activeSourceId, sources[0] ? sources[0].id : "");
+      }
+      renderSourceSelect();
+      renderSourcesList();
+    }
+
+    async function loadSelectedSource() {
+      loadSources();
+      const id = els.sourceSelect.value;
+      const src = sources.find(s => s.id === id);
+      if (!src) {
+        setStatus("Kaynak bulunamadı. Yönetici panelinden kaynak ekle.", true);
+        return;
+      }
+      localStorage.setItem(LS.activeSourceId, src.id);
+      await loadSource(src);
+    }
+
+    async function loadTempUrl() {
+      const url = els.tempUrl.value.trim();
+      if (!url) return alert("Geçici link gir.");
+      closeAdmin();
+      await loadSource({ id: "temp", type: "m3u", name: "Geçici Link", url });
+    }
+
+    async function loadSource(src) {
+      activeCategorySourceKey = getSourceKey(src);
+      activeCategorySourceName = src.name || "Kaynak";
+      categoryOpenState = {};
+      clearPlayback(true);
+      setStatus(`${src.name} yükleniyor...`);
+
+      try {
+        if (src.type === "xtream") {
+          await loadXtream(src);
+        } else if (src.type === "stb") {
+          await loadStbEmu(src);
+        } else {
+          await loadM3uOrDirect(src.url, src.name);
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus("Kaynak yüklenemedi.\n" + formatError(err) + "\n\nNot: Tarayıcı CORS/Cookie/User-Agent engeli varsa tek HTML dosyası bu kaynağı çekemez. Özellikle STBEmu portallarında küçük bir yerel proxy/backend gerekebilir.", true);
+      }
+    }
+
+    function getSourceTypeLabel(type) {
+      if (type === "xtream") return "Xtream";
+      if (type === "stb") return "STBEmu";
+      return "M3U/M3U8";
+    }
+
+    function normalizeMac(value) {
+      const cleaned = String(value || "").trim().toUpperCase().replace(/[^0-9A-F]/g, "");
+      if (cleaned.length !== 12) return String(value || "").trim().toUpperCase();
+      return cleaned.match(/.{1,2}/g).join(":");
+    }
+
+    function normalizePortalUrl(value) {
+      let url = String(value || "").trim();
+      if (!url) return "";
+      url = url.replace(/\s+/g, "");
+      if (!/^https?:\/\//i.test(url)) url = "http://" + url;
+      if (/portal\.php(?:\?|$)/i.test(url)) return url.replace(/\?.*$/, "");
+      url = url.replace(/\/+$/, "");
+      if (/\/c$/i.test(url)) url = url.slice(0, -2);
+      if (!/stalker_portal$/i.test(url) && /\/c\/?$/i.test(value)) url = url.replace(/\/c\/?$/i, "");
+      return url + "/portal.php";
+    }
+
+    function makeStbDeviceId(mac) {
+      const raw = String(mac || "").toUpperCase().replace(/[^0-9A-F]/g, "");
+      return raw ? (raw + raw).slice(0, 32) : "";
+    }
+
+    function stripStbCommand(cmd) {
+      let value = String(cmd || "").trim();
+      value = value.replace(/^ffmpeg\s+/i, "");
+      value = value.replace(/^auto\s+/i, "");
+      value = value.replace(/^http\s+/i, "http ");
+      return value.trim();
+    }
+
+    function stbUrl(src, params) {
+      const portal = normalizePortalUrl(src.portal);
+      const url = new URL(portal);
+      Object.entries(params || {}).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, value);
+      });
+      url.searchParams.set("JsHttpRequest", "1-xml");
+      url.searchParams.set("mac", src.mac || "");
+      return url.toString();
+    }
+
+    async function fetchStbJson(src, params, token = "") {
+      const headers = { "Accept": "application/json, text/javascript, */*; q=0.01" };
+      if (token) headers.Authorization = "Bearer " + token;
+
+      const response = await fetch(stbUrl(src, params), { cache: "no-store", headers });
+      if (!response.ok) throw new Error("STBEmu HTTP hatası: " + response.status);
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch (_) {
+        const match = text.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw new Error("STBEmu yanıtı JSON değil. CORS/portal uyumsuzluğu olabilir.");
+      }
+    }
+
+    async function loadStbEmu(src) {
+      const mac = normalizeMac(src.mac);
+      const deviceId = src.deviceId || makeStbDeviceId(mac);
+      const serial = src.serial || deviceId.slice(0, 13) || "0000000000000";
+      const normalizedSrc = Object.assign({}, src, { mac, deviceId, serial, portal: normalizePortalUrl(src.portal) });
+
+      setStatus("STBEmu portal deneniyor...\nNot: Tek HTML dosyasında bazı portallar CORS/Cookie/User-Agent kısıtlaması nedeniyle cevap vermeyebilir.");
+
+      const handshake = await fetchStbJson(normalizedSrc, {
+        type: "stb",
+        action: "handshake",
+        token: "",
+        prehash: ""
+      });
+
+      const token = handshake && handshake.js && (handshake.js.token || handshake.js.random);
+      if (!token) throw new Error("STBEmu handshake token alınamadı.");
+
+      try {
+        await fetchStbJson(normalizedSrc, {
+          type: "stb",
+          action: "get_profile",
+          hd: "1",
+          sn: serial,
+          stb_type: "MAG254",
+          client_type: "STB",
+          device_id: deviceId,
+          device_id2: deviceId,
+          auth_second_step: "0",
+          not_valid_token: "0"
+        }, token);
+      } catch (profileErr) {
+        console.warn("STBEmu profile adımı atlandı:", profileErr);
+      }
+
+      const [genresResp, channelsResp] = await Promise.all([
+        fetchStbJson(normalizedSrc, { type: "itv", action: "get_genres" }, token).catch(() => null),
+        fetchStbJson(normalizedSrc, { type: "itv", action: "get_all_channels" }, token)
+      ]);
+
+      const genreMap = new Map();
+      const genres = genresResp && genresResp.js;
+      if (Array.isArray(genres)) {
+        genres.forEach(g => genreMap.set(String(g.id || g.genre_id), g.title || g.name || "STBEmu"));
+      }
+
+      const rawChannels = channelsResp && channelsResp.js && (channelsResp.js.data || channelsResp.js);
+      if (!Array.isArray(rawChannels) || rawChannels.length === 0) {
+        throw new Error("STBEmu kanal listesi alınamadı.");
+      }
+
+      channels = rawChannels.map((item, i) => {
+        const groupId = String(item.tv_genre_id || item.genre_id || item.category_id || "");
+        const cmd = stripStbCommand(item.cmd || item.cmd_1 || item.url || "");
+        return {
+          name: item.name || item.title || `STB Kanal ${i + 1}`,
+          logo: item.logo || item.screenshot_uri || "",
+          group: genreMap.get(groupId) || item.genre_title || item.category_name || "STBEmu",
+          url: cmd,
+          source: src.name
+        };
+      }).filter(c => /^https?:\/\//i.test(c.url));
+
+      if (!channels.length) {
+        throw new Error("STBEmu kanal listesi geldi ama oynatılabilir HTTP/M3U8 linki bulunamadı. Bu portal create_link adımı veya proxy gerektiriyor olabilir.");
+      }
+
+      afterChannelsLoaded(`${src.name} yüklendi. ${channels.length} STBEmu kanalı bulundu.`);
+    }
+
+    async function loadXtream(src) {
+      const server = normalizeServer(src.server);
+      const u = encodeURIComponent(src.username);
+      const p = encodeURIComponent(src.password);
+
+      if (src.mode !== "m3u") {
+        try {
+          setStatus("Xtream API deneniyor...");
+          const catUrl = `${server}/player_api.php?username=${u}&password=${p}&action=get_live_categories`;
+          const streamsUrl = `${server}/player_api.php?username=${u}&password=${p}&action=get_live_streams`;
+          const [catResp, streamsResp] = await Promise.all([fetch(catUrl), fetch(streamsUrl)]);
+
+          if (!catResp.ok || !streamsResp.ok) {
+            throw new Error("Xtream API HTTP hatası.");
+          }
+
+          const cats = await catResp.json();
+          const streams = await streamsResp.json();
+
+          if (!Array.isArray(streams) || streams.length === 0) {
+            throw new Error("Xtream API kanal döndürmedi.");
+          }
+
+          const catMap = new Map();
+          if (Array.isArray(cats)) {
+            cats.forEach(c => catMap.set(String(c.category_id), c.category_name || "Xtream"));
+          }
+
+          channels = streams.map(s => {
+            const id = s.stream_id;
+            return {
+              name: s.name || `Kanal ${id}`,
+              logo: s.stream_icon || "",
+              group: catMap.get(String(s.category_id)) || "Xtream",
+              url: `${server}/live/${encodeURIComponent(src.username)}/${encodeURIComponent(src.password)}/${id}.m3u8`,
+              source: src.name
+            };
+          }).filter(c => c.url);
+
+          afterChannelsLoaded(`${src.name} yüklendi. ${channels.length} kanal bulundu.`);
+          return;
+        } catch (apiErr) {
+          console.warn("Xtream API başarısız, M3U fallback deneniyor:", apiErr);
+          setStatus("Xtream API çalışmadı. M3U playlist yöntemi deneniyor...");
+        }
+      }
+
+      const m3uUrl = `${server}/get.php?username=${u}&password=${p}&type=m3u_plus&output=m3u8`;
+      await loadM3uOrDirect(m3uUrl, src.name);
+    }
+
+    async function loadM3uOrDirect(url, sourceName) {
+      const trimmedUrl = String(url || "").trim();
+      if (!trimmedUrl) throw new Error("Boş link.");
+
+      let text = "";
+      let fetched = false;
+
+      try {
+        const resp = await fetch(trimmedUrl, { cache: "no-store" });
+        if (!resp.ok) throw new Error("HTTP durum: " + resp.status);
+        text = await resp.text();
+        fetched = true;
+      } catch (err) {
+        if (looksLikeDirectStream(trimmedUrl)) {
+          channels = [{ name: sourceName || "Direkt Yayın", logo: "", group: "Direkt Yayın", url: trimmedUrl, source: sourceName || "Direkt" }];
+          afterChannelsLoaded("Link playlist olarak çekilemedi; direkt yayın olarak eklendi.");
+          playChannel(0);
+          return;
+        }
+        throw err;
+      }
+
+      const trimmedText = text.trim();
+      if (fetched && isPlaylistText(trimmedText)) {
+        channels = parseM3U(trimmedText).map(c => Object.assign(c, { source: sourceName || "M3U" }));
+        if (!channels.length) {
+          throw new Error("Playlist okundu ama kanal bulunamadı.");
+        }
+        afterChannelsLoaded(`${sourceName || "Playlist"} yüklendi. ${channels.length} kanal bulundu.`);
+        return;
+      }
+
+      channels = [{ name: sourceName || "Direkt Yayın", logo: "", group: "Direkt Yayın", url: trimmedUrl, source: sourceName || "Direkt" }];
+      afterChannelsLoaded("Tek yayın linki olarak eklendi.");
+      playChannel(0);
+    }
+
+    function looksLikeDirectStream(url) {
+      return /\.(m3u8|mpd|mp4|webm|ogg)(\?|#|$)/i.test(url) || /\/live\//i.test(url);
+    }
+
+    function isPlaylistText(text) {
+      if (!text) return false;
+      return text.includes("#EXTINF") || /https?:\/\/[^\s]+\.(m3u8|ts|mp4)/i.test(text);
+    }
+
+    function parseM3U(text) {
+      const lines = text.split(/\r?\n/);
+      const list = [];
+      let current = null;
+
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line) continue;
+
+        if (line.startsWith("#EXTINF")) {
+          const name = getExtinfName(line);
+          current = {
+            name: name || "İsimsiz Kanal",
+            logo: getAttr(line, "tvg-logo") || "",
+            group: getAttr(line, "group-title") || "Diğer",
+            url: ""
+          };
+        } else if (!line.startsWith("#")) {
+          if (current) {
+            current.url = line;
+            list.push(current);
+            current = null;
+          } else if (/^https?:\/\//i.test(line)) {
+            list.push({ name: line.split("/").pop() || "Direkt Yayın", logo: "", group: "Direkt Yayın", url: line });
+          }
+        }
+      }
+
+      return list.filter(c => c.url);
+    }
+
+    function getExtinfName(line) {
+      const idx = line.lastIndexOf(",");
+      if (idx === -1) return "";
+      return line.slice(idx + 1).trim();
+    }
+
+    function getAttr(line, attr) {
+      const re = new RegExp(attr + '="([^"]*)"', "i");
+      const m = line.match(re);
+      return m ? m[1].trim() : "";
+    }
+
+    function afterChannelsLoaded(message) {
+      currentIndex = -1;
+      grouped = groupChannels(channels);
+      ensureCategoryDefaults();
+      renderChannels();
+      renderCategorySettingsList();
+      setStatus(message);
+    }
+
+    function ensureCategoryDefaults() {
+      const settings = getCategorySettings();
+      const groups = [...grouped.keys()];
+
+      for (const group of groups) {
+        if (!settings[group]) {
+          settings[group] = { visible: true };
+        } else {
+          settings[group] = Object.assign({ visible: true }, settings[group]);
+        }
+      }
+      saveCategorySettings(settings);
+
+      const currentOrder = getCategoryOrder().filter(group => groups.includes(group));
+      const missingGroups = groups.filter(group => !currentOrder.includes(group));
+      saveCategoryOrder([...currentOrder, ...missingGroups]);
+      grouped = new Map(sortCategoryEntries([...grouped.entries()]));
+    }
+
+    function groupChannels(list) {
+      const map = new Map();
+      for (let i = 0; i < list.length; i++) {
+        const ch = list[i];
+        const group = ch.group || "Diğer";
+        if (!map.has(group)) map.set(group, []);
+        map.get(group).push(Object.assign({ index: i }, ch));
+      }
+      return new Map(sortCategoryEntries([...map.entries()]));
+    }
+
+    function sortCategoryEntries(entries) {
+      const order = getCategoryOrder();
+      const orderIndex = new Map(order.map((group, index) => [group, index]));
+
+      return entries.sort((a, b) => {
+        const ai = orderIndex.has(a[0]) ? orderIndex.get(a[0]) : Number.MAX_SAFE_INTEGER;
+        const bi = orderIndex.has(b[0]) ? orderIndex.get(b[0]) : Number.MAX_SAFE_INTEGER;
+        if (ai !== bi) return ai - bi;
+        return a[0].localeCompare(b[0], "tr");
+      });
+    }
+
+    function refreshGroupedOrder() {
+      grouped = new Map(sortCategoryEntries([...grouped.entries()]));
+    }
+
+    function renderChannels() {
+      const query = els.searchInput.value.trim().toLowerCase();
+      els.categoryContainer.innerHTML = "";
+      filteredChannels = [];
+
+      for (const [group, items] of grouped.entries()) {
+        const setting = getCatSetting(group);
+        if (!setting.visible) continue;
+
+        const visibleItems = items.filter(ch => !query || ch.name.toLowerCase().includes(query));
+        if (!visibleItems.length && query) continue;
+
+        filteredChannels.push(...visibleItems);
+
+        const isOpen = Boolean(categoryOpenState[group]) || Boolean(query);
+
+        const cat = document.createElement("div");
+        cat.className = "category" + (isOpen ? " open" : "");
+
+        const header = document.createElement("div");
+        header.className = "category-header";
+        header.title = isOpen ? "Kapatmak için dokun" : "Altındaki kanalları açmak için dokun";
+        header.onclick = () => {
+          categoryOpenState[group] = !categoryOpenState[group];
+          renderChannels();
+        };
+
+        const label = document.createElement("div");
+        label.textContent = group;
+
+        const count = document.createElement("span");
+        count.className = "badge";
+        count.textContent = `${visibleItems.length} kanal ${isOpen ? "▲" : "▼"}`;
+
+        header.appendChild(label);
+        header.appendChild(count);
+        cat.appendChild(header);
+
+        const body = document.createElement("div");
+        body.className = "category-body";
+
+        for (const ch of visibleItems) {
+          body.appendChild(renderChannelRow(ch));
+        }
+
+        cat.appendChild(body);
+        els.categoryContainer.appendChild(cat);
+      }
+
+      els.channelCountBadge.textContent = `${filteredChannels.length} kanal`;
+      if (!els.categoryContainer.children.length) {
+        els.categoryContainer.innerHTML = '<div class="status">Gösterilecek kanal yok. Arama filtresini veya yönetici panelindeki kategori ayarlarını kontrol et.</div>';
+      }
+    }
+
+    function renderChannelRow(ch) {
+      const row = document.createElement("div");
+      row.className = "channel" + (ch.index === currentIndex ? " active" : "");
+
+      const img = document.createElement("img");
+      img.className = "channel-logo";
+      img.src = ch.logo || "";
+      img.alt = "";
+      img.onerror = () => { img.style.visibility = "hidden"; };
+
+      const name = document.createElement("div");
+      name.className = "channel-name";
+      name.title = ch.name;
+      name.textContent = ch.name;
+
+      const btn = document.createElement("button");
+      btn.className = "small green";
+      btn.textContent = "Oynat";
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        playChannel(ch.index);
+      };
+
+      row.onclick = () => playChannel(ch.index);
+      row.appendChild(img);
+      row.appendChild(name);
+      row.appendChild(btn);
+      return row;
+    }
+
+    function renderCategorySettingsList() {
+      els.categorySettingsList.innerHTML = "";
+      if (els.categorySettingsSourceInfo) {
+        const label = activeCategorySourceName || "Henüz kaynak yüklenmedi";
+        els.categorySettingsSourceInfo.textContent = `Bu ekrandaki ayarlar yalnızca şu kaynak için geçerli: ${label}`;
+      }
+      if (!grouped || grouped.size === 0) {
+        els.categorySettingsList.innerHTML = '<div class="status">Henüz kanal listesi yüklenmedi. Önce ayar yapacağın kaynağı yükle.</div>';
+        return;
+      }
+
+      const groups = [...grouped.keys()];
+
+      groups.forEach((group, position) => {
+        const items = grouped.get(group) || [];
+        const setting = getCatSetting(group);
+        const row = document.createElement("div");
+        row.className = "cat-setting";
+        row.draggable = true;
+        row.dataset.group = group;
+
+        row.addEventListener("dragstart", (e) => handleCategoryDragStart(e, group));
+        row.addEventListener("dragover", handleCategoryDragOver);
+        row.addEventListener("dragleave", handleCategoryDragLeave);
+        row.addEventListener("drop", (e) => handleCategoryDrop(e, group));
+        row.addEventListener("dragend", handleCategoryDragEnd);
+
+        const handle = document.createElement("div");
+        handle.className = "drag-handle";
+        handle.title = "Sürükle bırak ile sırala";
+        handle.textContent = "☰";
+
+        const name = document.createElement("strong");
+        name.textContent = `${group} (${items.length})`;
+
+        const visibilityBtn = document.createElement("button");
+        visibilityBtn.className = setting.visible ? "small red" : "small green";
+        visibilityBtn.textContent = setting.visible ? "Gizle" : "Göster";
+        visibilityBtn.onclick = () => {
+          setCatSetting(group, { visible: !setting.visible });
+          renderChannels();
+          renderCategorySettingsList();
+        };
+
+        const actions = document.createElement("div");
+        actions.className = "cat-order-actions";
+
+        const upBtn = document.createElement("button");
+        upBtn.className = "small secondary";
+        upBtn.textContent = "Yukarı";
+        upBtn.disabled = position === 0;
+        upBtn.onclick = () => moveCategory(group, -1);
+
+        const downBtn = document.createElement("button");
+        downBtn.className = "small secondary";
+        downBtn.textContent = "Aşağı";
+        downBtn.disabled = position === groups.length - 1;
+        downBtn.onclick = () => moveCategory(group, 1);
+
+        actions.appendChild(upBtn);
+        actions.appendChild(downBtn);
+        row.appendChild(handle);
+        row.appendChild(name);
+        row.appendChild(visibilityBtn);
+        row.appendChild(actions);
+        els.categorySettingsList.appendChild(row);
+      });
+    }
+
+    function handleCategoryDragStart(e, group) {
+      draggedCategory = group;
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", group);
+    }
+
+    function handleCategoryDragOver(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add("drag-over");
+    }
+
+    function handleCategoryDragLeave(e) {
+      e.currentTarget.classList.remove("drag-over");
+    }
+
+    function handleCategoryDrop(e, targetGroup) {
+      e.preventDefault();
+      e.currentTarget.classList.remove("drag-over");
+      const sourceGroup = draggedCategory || e.dataTransfer.getData("text/plain");
+      if (!sourceGroup || sourceGroup === targetGroup) return;
+      moveCategoryBefore(sourceGroup, targetGroup);
+    }
+
+    function handleCategoryDragEnd() {
+      draggedCategory = null;
+      document.querySelectorAll(".cat-setting.drag-over").forEach(el => el.classList.remove("drag-over"));
+    }
+
+    function bulkUpdateCategories(partial) {
+      const settings = getCategorySettings();
+      for (const group of grouped.keys()) {
+        settings[group] = Object.assign({ visible: true }, settings[group] || {}, partial);
+      }
+      saveCategorySettings(settings);
+      renderChannels();
+      renderCategorySettingsList();
+    }
+
+    function resetCategorySettings() {
+      if (!confirm("Bu kaynağın kategori göster/gizle ayarları sıfırlansın mı?")) return;
+      const all = getAllCategorySettings();
+      delete all[getCurrentCategorySourceKey()];
+      saveAllCategorySettings(all);
+      ensureCategoryDefaults();
+      renderChannels();
+      renderCategorySettingsList();
+    }
+
+    function resetCategoryOrder() {
+      if (!grouped || grouped.size === 0) return alert("Sıralanacak kategori yok. Önce bir kaynak yükle.");
+      const ordered = [...grouped.keys()].sort((a, b) => a.localeCompare(b, "tr"));
+      saveCategoryOrder(ordered);
+      refreshGroupedOrder();
+      renderChannels();
+      renderCategorySettingsList();
+    }
+
+    function moveCategory(group, direction) {
+      const order = [...grouped.keys()];
+      const index = order.indexOf(group);
+      if (index === -1) return;
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= order.length) return;
+      [order[index], order[nextIndex]] = [order[nextIndex], order[index]];
+      saveCategoryOrder(order);
+      refreshGroupedOrder();
+      renderChannels();
+      renderCategorySettingsList();
+    }
+
+    function moveCategoryBefore(sourceGroup, targetGroup) {
+      const order = [...grouped.keys()];
+      const from = order.indexOf(sourceGroup);
+      const to = order.indexOf(targetGroup);
+      if (from === -1 || to === -1 || from === to) return;
+      order.splice(from, 1);
+      order.splice(to, 0, sourceGroup);
+      saveCategoryOrder(order);
+      refreshGroupedOrder();
+      renderChannels();
+      renderCategorySettingsList();
+    }
+
+    function playFirstVisible() {
+      if (!filteredChannels.length) return alert("Oynatılacak görünür kanal yok.");
+      playChannel(filteredChannels[0].index);
+    }
+
+    function playChannel(index) {
+      if (index < 0 || index >= channels.length) return;
+      currentIndex = index;
+      const ch = channels[index];
+      els.nowTitle.textContent = ch.name;
+      els.nowUrl.textContent = ch.url;
+      setStatus(`${ch.name} açılıyor...`);
+
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+
+      els.video.removeAttribute("src");
+      els.video.load();
+
+      const url = ch.url;
+
+      if (window.Hls && Hls.isSupported()) {
+        hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 90
+        });
+        hls.loadSource(url);
+        hls.attachMedia(els.video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          els.video.play().catch(() => {});
+          setStatus(`${ch.name} oynatılıyor.`);
+        });
+        hls.on(Hls.Events.ERROR, (event, data) => {
+          console.error("HLS error", data);
+          const msg = data && data.details ? data.details : "Bilinmeyen HLS hatası";
+          setStatus(`Yayın hatası: ${msg}\nBaşka kanal dene. Bazı linkler tarayıcıda çalışmayabilir.`, true);
+        });
+      } else if (els.video.canPlayType("application/vnd.apple.mpegurl")) {
+        els.video.src = url;
+        els.video.play().catch(() => {});
+        setStatus(`${ch.name} oynatılıyor.`);
+      } else {
+        els.video.src = url;
+        els.video.play().catch(err => setStatus("Tarayıcı yayını doğrudan oynatamadı. " + formatError(err), true));
+      }
+
+      renderChannels();
+    }
+
+    function playNext() {
+      if (!filteredChannels.length) return;
+      const pos = filteredChannels.findIndex(ch => ch.index === currentIndex);
+      const next = pos >= 0 ? (pos + 1) % filteredChannels.length : 0;
+      playChannel(filteredChannels[next].index);
+    }
+
+    function playPrevious() {
+      if (!filteredChannels.length) return;
+      const pos = filteredChannels.findIndex(ch => ch.index === currentIndex);
+      const prev = pos >= 0 ? (pos - 1 + filteredChannels.length) % filteredChannels.length : filteredChannels.length - 1;
+      playChannel(filteredChannels[prev].index);
+    }
+
+    function togglePlay() {
+      if (els.video.paused) {
+        els.video.play().catch(() => {});
+      } else {
+        els.video.pause();
+      }
+    }
+
+    function clearPlayback(clearChannels = true) {
+      if (hls) {
+        hls.destroy();
+        hls = null;
+      }
+      els.video.pause();
+      els.video.removeAttribute("src");
+      els.video.load();
+      els.nowTitle.textContent = "Kanal seçilmedi";
+      els.nowUrl.textContent = "";
+      currentIndex = -1;
+      if (clearChannels) {
+        channels = [];
+        filteredChannels = [];
+        grouped = new Map();
+        renderChannels();
+      }
+    }
+
+    function savePasswords() {
+      const panel = els.newPanelPassword.value.trim();
+      const admin = els.newAdminPassword.value.trim();
+      if (panel) localStorage.setItem(LS.panelPass, panel);
+      if (admin) localStorage.setItem(LS.adminPass, admin);
+      els.newPanelPassword.value = "";
+      els.newAdminPassword.value = "";
+      alert("Şifreler kaydedildi.");
+    }
+
+    function exportData() {
+      const data = {
+        sources,
+        categorySettingsBySource: getAllCategorySettings(),
+        categoryOrderBySource: getAllCategoryOrder(),
+        panelPassword: getPanelPassword(),
+        adminPassword: getAdminPassword()
+      };
+      els.exportBox.value = JSON.stringify(data, null, 2);
+    }
+
+    function clearAllData() {
+      if (!confirm("Tüm kaynaklar, şifreler ve kategori ayarları silinsin mi?")) return;
+      Object.values(LS).forEach(k => localStorage.removeItem(k));
+      sources = [];
+      channels = [];
+      grouped = new Map();
+      adminUnlocked = false;
+      activeCategorySourceKey = "";
+      activeCategorySourceName = "";
+      seedExampleSourceIfEmpty();
+      renderSourceSelect();
+      renderSourcesList();
+      renderChannels();
+      closeAdmin();
+      alert("Kayıtlar silindi. Varsayılan şifreler tekrar geçerli: panel 1234, admin admin1234.");
+    }
+
+    function formatError(err) {
+      if (!err) return "Bilinmeyen hata";
+      return err.message || String(err);
+    }
+
+    updateSourceTypeFields();
+    init();
+  </script>
+</body>
+</html>
