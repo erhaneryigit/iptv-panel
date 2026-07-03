@@ -458,11 +458,15 @@
       <main class="player">
         <div id="nowTitle" class="now-title">Kanal seçilmedi</div>
         <div id="nowUrl" class="now-url"></div>
-        <video id="video" controls autoplay playsinline></video>
+        <video id="video" controls autoplay playsinline webkit-playsinline x-webkit-airplay="allow" preload="auto"></video>
         <div class="three" style="margin-top:14px;">
           <button id="prevButton" class="secondary">Önceki</button>
           <button id="togglePlayButton" class="secondary">Duraklat/Oynat</button>
           <button id="nextButton" class="secondary">Sonraki</button>
+        </div>
+        <div class="two" style="margin-top:12px;">
+          <button id="openStreamButton" class="green">Yayını Ayrı Aç</button>
+          <button id="copyStreamButton" class="secondary">Linki Kopyala</button>
         </div>
         <div id="status" class="status">Yönetici panelinden M3U/M3U8, Xtream veya STBEmu kaynağı ekle, sonra buradan yükle.</div>
       </main>
@@ -500,6 +504,7 @@
             <label>Kaynak tipi
               <select id="sourceType">
                 <option value="m3u">M3U / M3U8 Link</option>
+                <option value="m3utext">M3U Dosyası / İçeriği</option>
                 <option value="xtream">Xtream Codes</option>
                 <option value="stb">STBEmu / Stalker Portal</option>
               </select>
@@ -511,6 +516,12 @@
             <label id="m3uUrlLabel" class="full">M3U / M3U8 linki
               <input id="sourceUrl" type="text" placeholder="https://.../playlist.m3u8 veya get.php?..." />
               <span>Playlist linki veya tek yayın linki olabilir.</span>
+            </label>
+
+            <label id="m3uTextLabel" class="full hidden">M3U dosyası / M3U içeriği
+              <input id="sourceM3uFile" type="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" />
+              <textarea id="sourceM3uText" placeholder="M3U içeriğini buraya yapıştırabilir veya yukarıdan .m3u/.m3u8 dosyası seçebilirsin." style="margin-top:10px; min-height:140px;"></textarea>
+              <span>Mobilde link çekilemiyorsa playlist dosyasını telefona indirip buradan seç. Bu kaynak localStorage'a kaydedilir.</span>
             </label>
 
             <label id="xtreamServerLabel" class="hidden">Xtream sunucu URL
@@ -557,6 +568,10 @@
             <p class="muted">Bu alan kayıt yapmaz. Sadece hızlı test içindir.</p>
             <input id="tempUrl" type="text" placeholder="M3U / M3U8 linki ile hızlı test" />
             <button id="tempLoadButton" style="margin-top:10px;">Geçici Linki Yükle</button>
+            <textarea id="tempM3uText" placeholder="Mobilde link çekilemezse M3U içeriğini buraya yapıştır" style="margin-top:10px;"></textarea>
+            <button id="tempTextLoadButton" class="green" style="margin-top:10px;">Yapıştırılan Listeyi Yükle</button>
+            <input id="tempM3uFile" type="file" accept=".m3u,.m3u8,.txt,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" style="margin-top:10px;" />
+            <button id="tempFileLoadButton" class="secondary" style="margin-top:10px;">Seçilen M3U Dosyasını Yükle</button>
           </div>
         </section>
 
@@ -649,6 +664,8 @@
       prevButton: $("prevButton"),
       nextButton: $("nextButton"),
       togglePlayButton: $("togglePlayButton"),
+      openStreamButton: $("openStreamButton"),
+      copyStreamButton: $("copyStreamButton"),
       adminWrap: $("adminWrap"),
       closeAdminButton: $("closeAdminButton"),
       adminLoginBox: $("adminLoginBox"),
@@ -666,6 +683,9 @@
       sourceName: $("sourceName"),
       sourceUrl: $("sourceUrl"),
       m3uUrlLabel: $("m3uUrlLabel"),
+      m3uTextLabel: $("m3uTextLabel"),
+      sourceM3uText: $("sourceM3uText"),
+      sourceM3uFile: $("sourceM3uFile"),
       xtreamServerLabel: $("xtreamServerLabel"),
       xtreamUserLabel: $("xtreamUserLabel"),
       xtreamPassLabel: $("xtreamPassLabel"),
@@ -688,6 +708,10 @@
       sourcesList: $("sourcesList"),
       tempUrl: $("tempUrl"),
       tempLoadButton: $("tempLoadButton"),
+      tempM3uText: $("tempM3uText"),
+      tempTextLoadButton: $("tempTextLoadButton"),
+      tempM3uFile: $("tempM3uFile"),
+      tempFileLoadButton: $("tempFileLoadButton"),
       categorySettingsList: $("categorySettingsList"),
       categorySettingsSourceInfo: $("categorySettingsSourceInfo"),
       showAllCategoriesButton: $("showAllCategoriesButton"),
@@ -851,10 +875,19 @@
       els.prevButton.addEventListener("click", playPrevious);
       els.nextButton.addEventListener("click", playNext);
       els.togglePlayButton.addEventListener("click", togglePlay);
+      els.openStreamButton.addEventListener("click", openCurrentStream);
+      els.copyStreamButton.addEventListener("click", copyCurrentStreamUrl);
+      els.video.addEventListener("error", handleVideoElementError);
+      els.video.addEventListener("loadedmetadata", () => {
+        if (currentIndex >= 0 && channels[currentIndex]) setStatus(channels[currentIndex].name + " oynatıcıya yüklendi. Mobilde başlamazsa videonun üzerindeki Play düğmesine bas.");
+      });
       els.sourceType.addEventListener("change", updateSourceTypeFields);
       els.addSourceButton.addEventListener("click", addSource);
       els.clearFormButton.addEventListener("click", clearSourceForm);
       els.tempLoadButton.addEventListener("click", loadTempUrl);
+      els.tempTextLoadButton.addEventListener("click", loadTempText);
+      els.sourceM3uFile.addEventListener("change", importSourceM3uFile);
+      els.tempFileLoadButton.addEventListener("click", loadTempFile);
       els.tabSources.addEventListener("click", () => showTab("sources"));
       els.tabCategories.addEventListener("click", () => showTab("categories"));
       els.tabSettings.addEventListener("click", () => showTab("settings"));
@@ -958,7 +991,9 @@
       const type = els.sourceType.value;
       const isXtream = type === "xtream";
       const isStb = type === "stb";
-      els.m3uUrlLabel.classList.toggle("hidden", isXtream || isStb);
+      const isM3uText = type === "m3utext";
+      els.m3uUrlLabel.classList.toggle("hidden", isXtream || isStb || isM3uText);
+      els.m3uTextLabel.classList.toggle("hidden", !isM3uText);
       els.xtreamServerLabel.classList.toggle("hidden", !isXtream);
       els.xtreamUserLabel.classList.toggle("hidden", !isXtream);
       els.xtreamPassLabel.classList.toggle("hidden", !isXtream);
@@ -973,6 +1008,8 @@
     function clearSourceForm() {
       els.sourceName.value = "";
       els.sourceUrl.value = "";
+      els.sourceM3uText.value = "";
+      els.sourceM3uFile.value = "";
       els.xtreamServer.value = "";
       els.xtreamUsername.value = "";
       els.xtreamPassword.value = "";
@@ -987,12 +1024,17 @@
 
     function addSource() {
       const type = els.sourceType.value;
-      const name = els.sourceName.value.trim() || (type === "xtream" ? "Xtream Kaynağı" : (type === "stb" ? "STBEmu Kaynağı" : "M3U Kaynağı"));
+      const name = els.sourceName.value.trim() || (type === "xtream" ? "Xtream Kaynağı" : (type === "stb" ? "STBEmu Kaynağı" : (type === "m3utext" ? "M3U Dosya Kaynağı" : "M3U Kaynağı")));
 
       if (type === "m3u") {
         const url = els.sourceUrl.value.trim();
         if (!url) return alert("M3U / M3U8 linki gir.");
         sources.push({ id: makeId(), type, name, url });
+      } else if (type === "m3utext") {
+        const text = els.sourceM3uText.value.trim();
+        if (!text) return alert("M3U içeriği yapıştır veya .m3u/.m3u8 dosyası seç.");
+        if (!isPlaylistText(text)) return alert("Bu içerik M3U playlist gibi görünmüyor. İçerik #EXTM3U ile başlamalı.");
+        sources.push({ id: makeId(), type, name, text });
       } else if (type === "xtream") {
         const server = normalizeServer(els.xtreamServer.value);
         const username = els.xtreamUsername.value.trim();
@@ -1084,6 +1126,8 @@
           detail.textContent = `Xtream | ${src.server} | kullanıcı: ${src.username}`;
         } else if (src.type === "stb") {
           detail.textContent = `STBEmu | ${src.portal} | MAC: ${src.mac}`;
+        } else if (src.type === "m3utext") {
+          detail.textContent = `M3U Dosyası / İçeriği | ${String(src.text || "").length} karakter`;
         } else {
           detail.textContent = src.url;
         }
@@ -1145,6 +1189,81 @@
       await loadSource({ id: "temp", type: "m3u", name: "Geçici Link", url });
     }
 
+    function loadTempText() {
+      const text = els.tempM3uText.value.trim();
+      if (!text) return alert("M3U içeriğini yapıştır.");
+
+      activeCategorySourceKey = "temp_pasted_m3u";
+      activeCategorySourceName = "Yapıştırılan Liste";
+      categoryOpenState = {};
+      clearPlayback(true);
+
+      try {
+        if (!isPlaylistText(text)) {
+          if (/^https?:\/\//i.test(text)) {
+            closeAdmin();
+            loadSource({ id: "temp_pasted_url", type: "m3u", name: "Yapıştırılan Link", url: text });
+            return;
+          }
+          throw new Error("Yapıştırılan içerik M3U playlist gibi görünmüyor.");
+        }
+
+        channels = parseM3U(text).map(c => Object.assign(c, { source: "Yapıştırılan Liste" }));
+        if (!channels.length) throw new Error("Yapıştırılan listede kanal bulunamadı.");
+        closeAdmin();
+        afterChannelsLoaded(`Yapıştırılan liste yüklendi. ${channels.length} kanal bulundu.`);
+      } catch (err) {
+        setStatus("Yapıştırılan liste yüklenemedi.\n" + formatError(err), true);
+        alert("Liste yüklenemedi: " + formatError(err));
+      }
+    }
+
+    function loadM3uTextSource(src) {
+      const text = String(src.text || "").trim();
+      if (!text) throw new Error("Kayıtlı M3U içeriği boş.");
+      if (!isPlaylistText(text)) throw new Error("Kayıtlı içerik M3U playlist gibi görünmüyor.");
+      channels = parseM3U(text).map(c => Object.assign(c, { source: src.name || "M3U Dosyası" }));
+      if (!channels.length) throw new Error("Kayıtlı M3U içeriğinde kanal bulunamadı.");
+      afterChannelsLoaded(`${src.name || "M3U Dosyası"} yüklendi. ${channels.length} kanal bulundu.`);
+    }
+
+    function readTextFile(file) {
+      return new Promise((resolve, reject) => {
+        if (!file) return reject(new Error("Dosya seçilmedi."));
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Dosya okunamadı."));
+        reader.readAsText(file, "utf-8");
+      });
+    }
+
+    async function importSourceM3uFile() {
+      const file = els.sourceM3uFile.files && els.sourceM3uFile.files[0];
+      if (!file) return;
+      try {
+        const text = await readTextFile(file);
+        els.sourceM3uText.value = text;
+        if (!els.sourceName.value.trim()) {
+          els.sourceName.value = file.name.replace(/\.(m3u8?|txt)$/i, "") || "M3U Dosyası";
+        }
+      } catch (err) {
+        alert("Dosya okunamadı: " + formatError(err));
+      }
+    }
+
+    async function loadTempFile() {
+      const file = els.tempM3uFile.files && els.tempM3uFile.files[0];
+      if (!file) return alert("Önce .m3u/.m3u8 dosyası seç.");
+      try {
+        const text = await readTextFile(file);
+        els.tempM3uText.value = text;
+        closeAdmin();
+        loadSource({ id: "temp_file_m3u", type: "m3utext", name: file.name || "Seçilen M3U Dosyası", text });
+      } catch (err) {
+        alert("Dosya yüklenemedi: " + formatError(err));
+      }
+    }
+
     async function loadSource(src) {
       activeCategorySourceKey = getSourceKey(src);
       activeCategorySourceName = src.name || "Kaynak";
@@ -1157,6 +1276,8 @@
           await loadXtream(src);
         } else if (src.type === "stb") {
           await loadStbEmu(src);
+        } else if (src.type === "m3utext") {
+          loadM3uTextSource(src);
         } else {
           await loadM3uOrDirect(src.url, src.name);
         }
@@ -1169,6 +1290,7 @@
     function getSourceTypeLabel(type) {
       if (type === "xtream") return "Xtream";
       if (type === "stb") return "STBEmu";
+      if (type === "m3utext") return "M3U Dosyası";
       return "M3U/M3U8";
     }
 
@@ -1356,25 +1478,35 @@
       if (!trimmedUrl) throw new Error("Boş link.");
 
       let text = "";
-      let fetched = false;
 
       try {
-        const resp = await fetch(trimmedUrl, { cache: "no-store" });
-        if (!resp.ok) throw new Error("HTTP durum: " + resp.status);
-        text = await resp.text();
-        fetched = true;
+        text = await fetchTextWithFallbacks(trimmedUrl);
       } catch (err) {
+        /*
+          Mobil tarayıcılarda dosya edge://external-file veya file:// olarak açıldığında
+          bazı playlist linkleri fetch ile çekilemeyebilir. Eskiden .m3u8 ile biten her linki
+          direkt yayın sayıyorduk; bu yüzden playlist linkleri mobilde tek kanal gibi görünüyordu.
+          Artık playlist olduğu belli olan linkleri direkt yayına çevirmiyoruz.
+        */
+        if (looksLikePlaylistLink(trimmedUrl)) {
+          throw new Error(
+            "Bu link playlist gibi görünüyor ama mobil tarayıcı listeyi çekemedi. " +
+            formatError(err) +
+            "\n\nÇözüm: Dosyayı mobilde indirilmiş dosya/WhatsApp içinden değil, yerel HTTP ile açmayı dene veya M3U içeriğini yönetici panelindeki geçici test alanına yapıştır."
+          );
+        }
+
         if (looksLikeDirectStream(trimmedUrl)) {
           channels = [{ name: sourceName || "Direkt Yayın", logo: "", group: "Direkt Yayın", url: trimmedUrl, source: sourceName || "Direkt" }];
-          afterChannelsLoaded("Link playlist olarak çekilemedi; direkt yayın olarak eklendi.");
+          afterChannelsLoaded("Link liste olarak çekilemedi; direkt yayın olarak eklendi.");
           playChannel(0);
           return;
         }
         throw err;
       }
 
-      const trimmedText = text.trim();
-      if (fetched && isPlaylistText(trimmedText)) {
+      const trimmedText = String(text || "").trim();
+      if (isPlaylistText(trimmedText)) {
         channels = parseM3U(trimmedText).map(c => Object.assign(c, { source: sourceName || "M3U" }));
         if (!channels.length) {
           throw new Error("Playlist okundu ama kanal bulunamadı.");
@@ -1383,18 +1515,63 @@
         return;
       }
 
-      channels = [{ name: sourceName || "Direkt Yayın", logo: "", group: "Direkt Yayın", url: trimmedUrl, source: sourceName || "Direkt" }];
-      afterChannelsLoaded("Tek yayın linki olarak eklendi.");
-      playChannel(0);
+      if (looksLikeDirectStream(trimmedUrl) || looksLikeDirectStream(trimmedText)) {
+        channels = [{ name: sourceName || "Direkt Yayın", logo: "", group: "Direkt Yayın", url: trimmedUrl, source: sourceName || "Direkt" }];
+        afterChannelsLoaded("Tek yayın linki olarak eklendi.");
+        playChannel(0);
+        return;
+      }
+
+      throw new Error("Linkten gelen veri M3U playlist veya oynatılabilir yayın gibi görünmüyor.");
+    }
+
+    async function fetchTextWithFallbacks(url) {
+      const candidates = [url, ...getMirrorUrls(url)];
+      const errors = [];
+
+      for (const candidate of candidates) {
+        try {
+          const resp = await fetch(candidate, { cache: "no-store", redirect: "follow" });
+          if (!resp.ok) throw new Error("HTTP durum: " + resp.status);
+          const text = await resp.text();
+          if (text && text.trim()) return text;
+          throw new Error("Boş yanıt geldi.");
+        } catch (err) {
+          errors.push(`${candidate}: ${formatError(err)}`);
+        }
+      }
+
+      throw new Error(errors.join("\n"));
+    }
+
+    function getMirrorUrls(url) {
+      const mirrors = [];
+
+      // GitHub raw linkleri mobil tarayıcıda bazen dış dosya modunda çekilemiyor.
+      // Aynı dosyayı jsDelivr CDN üzerinden de deniyoruz.
+      const github = String(url).match(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/i);
+      if (github) {
+        const [, owner, repo, branch, path] = github;
+        mirrors.push(`https://cdn.jsdelivr.net/gh/${owner}/${repo}@${branch}/${path}`);
+      }
+
+      return [...new Set(mirrors)].filter(item => item && item !== url);
+    }
+
+    function looksLikePlaylistLink(url) {
+      const value = String(url || "").toLowerCase();
+      return /playlist/.test(value) || /get\.php\?/.test(value) || /type=m3u/.test(value) || /m3u_plus/.test(value) || /output=m3u/.test(value) || /raw\.githubusercontent\.com/.test(value) || /cdn\.jsdelivr\.net\/gh/.test(value);
     }
 
     function looksLikeDirectStream(url) {
-      return /\.(m3u8|mpd|mp4|webm|ogg)(\?|#|$)/i.test(url) || /\/live\//i.test(url);
+      const value = String(url || "").trim();
+      return /\.(m3u8|mpd|mp4|webm|ogg)(\?|#|$)/i.test(value) || /\/live\//i.test(value);
     }
 
     function isPlaylistText(text) {
       if (!text) return false;
-      return text.includes("#EXTINF") || /https?:\/\/[^\s]+\.(m3u8|ts|mp4)/i.test(text);
+      const value = String(text).trim();
+      return value.startsWith("#EXTM3U") || value.includes("#EXTINF") || /https?:\/\/[^\s]+\.(m3u8|ts|mp4)/i.test(value);
     }
 
     function parseM3U(text) {
@@ -1732,6 +1909,65 @@
       renderCategorySettingsList();
     }
 
+    function isAppleMobileBrowser() {
+      const ua = navigator.userAgent || "";
+      const platform = navigator.platform || "";
+      const touchApple = platform === "MacIntel" && navigator.maxTouchPoints > 1;
+      return /iPhone|iPad|iPod/i.test(ua) || touchApple;
+    }
+
+    function currentStreamUrl() {
+      if (currentIndex < 0 || !channels[currentIndex]) return "";
+      return channels[currentIndex].url || "";
+    }
+
+    function openCurrentStream() {
+      const url = currentStreamUrl();
+      if (!url) return alert("Önce bir kanal seç.");
+      const opened = window.open(url, "_blank", "noopener,noreferrer");
+      if (!opened) {
+        setStatus("Tarayıcı yeni sekmeyi engelledi. Linki Kopyala butonuyla linki kopyalayıp adres çubuğuna yapıştırabilirsin.", true);
+      } else {
+        setStatus("Yayın yeni sekmede açıldı. iPhone/Edge bazı HLS yayınlarını sayfa içindeki oynatıcıda değil ayrı sekmede açabiliyor.");
+      }
+    }
+
+    async function copyCurrentStreamUrl() {
+      const url = currentStreamUrl();
+      if (!url) return alert("Önce bir kanal seç.");
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          const ta = document.createElement("textarea");
+          ta.value = url;
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+        }
+        setStatus("Yayın linki kopyalandı.");
+      } catch (err) {
+        setStatus("Link kopyalanamadı: " + formatError(err), true);
+      }
+    }
+
+    function handleVideoElementError() {
+      const err = els.video.error;
+      if (!err || currentIndex < 0 || !channels[currentIndex]) return;
+      const codes = {
+        1: "Yayın oynatma işlemi iptal edildi.",
+        2: "Ağ hatası oluştu.",
+        3: "Yayın çözümlenemedi / bozuk veri geldi.",
+        4: "Bu mobil tarayıcı bu yayın formatını desteklemedi."
+      };
+      const msg = codes[err.code] || "Video oynatılamadı.";
+      setStatus(msg + "\nMobilde önce aynı kanalda 'Yayını Ayrı Aç' düğmesini dene. Olmazsa başka kanal seç; bazı kanallar iPhone/Edge içinde çalışmayabilir.", true);
+    }
+
     function playFirstVisible() {
       if (!filteredChannels.length) return alert("Oynatılacak görünür kanal yok.");
       playChannel(filteredChannels[0].index);
@@ -1754,8 +1990,27 @@
       els.video.load();
 
       const url = ch.url;
+      const canNativeHls = !!els.video.canPlayType("application/vnd.apple.mpegurl");
+      const shouldUseNativeFirst = isAppleMobileBrowser() || canNativeHls;
 
-      if (window.Hls && Hls.isSupported()) {
+      const tryNative = () => {
+        els.video.src = url;
+        els.video.load();
+        const promise = els.video.play();
+        if (promise && typeof promise.catch === "function") {
+          promise
+            .then(() => setStatus(`${ch.name} oynatılıyor.`))
+            .catch(err => {
+              setStatus(`Mobil tarayıcı otomatik başlatamadı: ${formatError(err)}\nVideonun üzerindeki Play düğmesine bas. Yine olmazsa 'Yayını Ayrı Aç' düğmesini dene.`, true);
+            });
+        } else {
+          setStatus(`${ch.name} oynatıcıya gönderildi.`);
+        }
+      };
+
+      if (shouldUseNativeFirst) {
+        tryNative();
+      } else if (window.Hls && Hls.isSupported()) {
         hls = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
@@ -1764,21 +2019,17 @@
         hls.loadSource(url);
         hls.attachMedia(els.video);
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          els.video.play().catch(() => {});
-          setStatus(`${ch.name} oynatılıyor.`);
+          els.video.play()
+            .then(() => setStatus(`${ch.name} oynatılıyor.`))
+            .catch(err => setStatus(`Yayın yüklendi ama otomatik başlamadı: ${formatError(err)}\nVideonun üzerindeki Play düğmesine bas.`, true));
         });
         hls.on(Hls.Events.ERROR, (event, data) => {
           console.error("HLS error", data);
           const msg = data && data.details ? data.details : "Bilinmeyen HLS hatası";
-          setStatus(`Yayın hatası: ${msg}\nBaşka kanal dene. Bazı linkler tarayıcıda çalışmayabilir.`, true);
+          setStatus(`Yayın hatası: ${msg}\nBaşka kanal dene. Mobilde gerekirse 'Yayını Ayrı Aç' düğmesini kullan.`, true);
         });
-      } else if (els.video.canPlayType("application/vnd.apple.mpegurl")) {
-        els.video.src = url;
-        els.video.play().catch(() => {});
-        setStatus(`${ch.name} oynatılıyor.`);
       } else {
-        els.video.src = url;
-        els.video.play().catch(err => setStatus("Tarayıcı yayını doğrudan oynatamadı. " + formatError(err), true));
+        tryNative();
       }
 
       renderChannels();
